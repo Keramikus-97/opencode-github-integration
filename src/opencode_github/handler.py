@@ -33,11 +33,20 @@ class WebhookProcessor:
     webhook_secret:
         Optional shared secret for verifying ``X-Hub-Signature-256``.
         When ``None`` signature verification is skipped.
+    ignore_logins:
+        Set of login names whose comments should be ignored (bot-loop prevention).
+        Typically includes the bot's own login so it doesn't respond to itself.
     """
 
-    def __init__(self, config: Config, webhook_secret: str | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        webhook_secret: str | None = None,
+        ignore_logins: set[str] | None = None,
+    ) -> None:
         self._config = config
         self._webhook_secret = webhook_secret
+        self._ignore_logins: set[str] = ignore_logins or set()
         self._client = GitHubClient(
             token=config.github_token,
             base_url=config.github_api_url,
@@ -82,6 +91,10 @@ class WebhookProcessor:
         event = parse_raw(event_header, body)
         if event is None:
             return HandlerResult(event=None, skipped_reason="unsupported_event")
+
+        if event.sender_login in self._ignore_logins:
+            logger.debug("Ignoring comment from %s (bot-loop prevention)", event.sender_login)
+            return HandlerResult(event=event, skipped_reason="ignored_login")
 
         commands = extract_commands(event.comment_body, self._config.allowed_commands)
         if not commands:

@@ -152,6 +152,47 @@ class TestProcess:
         assert result.commands[1].arguments == "second task"
 
 
+class TestBotLoopPrevention:
+    async def test_ignored_login_skipped(self) -> None:
+        config = _make_config()
+        body = _issue_comment_body("/oc do something")
+
+        async with WebhookProcessor(config, ignore_logins={"contributor"}) as processor:
+            result = await processor.process("issue_comment", body)
+
+        assert result.event is not None
+        assert result.skipped_reason == "ignored_login"
+        assert result.commands == []
+        assert result.acknowledged is False
+
+    async def test_non_ignored_login_processed(self) -> None:
+        config = _make_config()
+        body = _issue_comment_body("/oc do something")
+
+        with respx.mock(base_url=BASE, assert_all_called=False) as router:
+            router.post("/repos/owner/repo/issues/comments/1001/reactions").mock(
+                return_value=httpx.Response(201, json={"id": 1, "content": "eyes"})
+            )
+            async with WebhookProcessor(config, ignore_logins={"some-other-bot"}) as processor:
+                result = await processor.process("issue_comment", body)
+
+        assert result.acknowledged is True
+        assert len(result.commands) == 1
+
+    async def test_empty_ignore_set_processes_all(self) -> None:
+        config = _make_config()
+        body = _issue_comment_body("/oc hello")
+
+        with respx.mock(base_url=BASE, assert_all_called=False) as router:
+            router.post("/repos/owner/repo/issues/comments/1001/reactions").mock(
+                return_value=httpx.Response(201, json={"id": 1, "content": "eyes"})
+            )
+            async with WebhookProcessor(config, ignore_logins=set()) as processor:
+                result = await processor.process("issue_comment", body)
+
+        assert result.acknowledged is True
+
+
 class TestContextManager:
     async def test_async_with(self) -> None:
         config = _make_config()

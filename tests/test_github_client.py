@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import httpx
 import pytest
 import respx
@@ -11,6 +13,7 @@ from opencode_github.github_client import (
     GitHubClient,
     IssueComment,
     PullRequest,
+    RateLimitError,
 )
 
 BASE = "https://api.github.com"
@@ -24,7 +27,7 @@ def mock_router() -> respx.MockRouter:
 
 @pytest.fixture()
 def client() -> GitHubClient:
-    return GitHubClient(token="test-token", base_url=BASE, timeout=5)
+    return GitHubClient(token="test-token", base_url=BASE, timeout=5, backoff_base=0.0)
 
 
 class TestGetPullRequest:
@@ -153,3 +156,159 @@ class TestContextManager:
     async def test_async_with(self) -> None:
         async with GitHubClient(token="tok") as c:
             assert c._token == "tok"
+
+
+class TestRetryLogic:
+    async def test_retries_on_500_then_succeeds(self) -> None:
+        call_count = 0
+
+        async def side_effect(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                return httpx.Response(500, text="Internal Server Error")
+            return httpx.Response(200, json={"ok": True})
+
+        with respx.mock(base_url=BASE, assert_all_called=False) as router:
+            router.get("/repos/owner/repo").mock(side_effect=side_effect)
+            client = GitHubClient(token="test-token", base_url=BASE, timeout=5, backoff_base=0.0)
+            data = await client.get_repo("owner", "repo")
+
+        assert data == {"ok": True}
+        assert call_count == 3
+
+    async def test_raises_after_max_retries(self) -> None:
+        with respx.mock(base_url=BASE, assert_all_called=False) as router:
+            router.get("/repos/owner/repo").mock(
+                return_value=httpx.Response(503, text="Service Unavailable")
+            )
+            client = GitHubClient(
+                token="test-token", base_url=BASE, timeout=5, max_retries=2, backoff_base=0.0
+            )
+            with pytest.raises(GitHubAPIError) as exc_info:
+                await client.get_repo("owner", "repo")
+            assert exc_info.value.status_code == 503
+
+    async def test_no_retry_on_4xx(self) -> None:
+        call_count = 0
+
+        async def side_effect(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(422, text="Unprocessable")
+
+        with respx.mock(base_url=BASE, assert_all_called=False) as router:
+            router.get("/repos/owner/repo").mock(side_effect=side_effect)
+            client = GitHubClient(token="test-token", base_url=BASE, timeout=5, backoff_base=0.0)
+            with pytest.raises(GitHubAPIError):
+                await client.get_repo("owner", "repo")
+
+        assert call_count == 1
+
+    async def test_rate_limit_raises_rate_limit_error(self) -> None:
+        with respx.mock(base_url=BASE, assert_all_called=False) as router:
+            router.get("/repos/owner/repo").mock(
+                return_value=httpx.Response(
+                    429,
+                    text="rate limit exceeded",
+                    headers={"X-RateLimit-Reset": "1700000000"},
+                )
+            )
+            client = GitHubClient(
+                token="test-token", base_url=BASE, timeout=5, max_retries=1, backoff_base=0.0
+            )
+            with pytest.raises(RateLimitError) as exc_info:
+                await client.get_repo("owner", "repo")
+            assert exc_info.value.status_code == 429
+            assert exc_info.value.reset_at == 1700000000.0
+
+    async def test_respects_retry_after_header(self) -> None:
+        call_count = 0
+
+        async def side_effect(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(429, text="slow down", headers={"Retry-After": "0"})
+            return httpx.Response(200, json={"ok": True})
+
+        with respx.mock(base_url=BASE, assert_all_called=False) as router:
+            router.get("/repos/owner/repo").mock(side_effect=side_effect)
+            client = GitHubClient(token="test-token", base_url=BASE, timeout=5, backoff_base=0.0)
+            data = await client.get_repo("owner", "repo")
+
+        assert data == {"ok": True}
+        assert call_count == 2
+
+    async def test_respects_rate_limit_reset_header(self) -> None:
+        call_count = 0
+
+        async def side_effect(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(429, text="slow down", headers={"X-RateLimit-Reset": "0"})
+            return httpx.Response(200, json={"ok": True})
+
+        with respx.mock(base_url=BASE, assert_all_called=False) as router:
+            router.get("/repos/owner/repo").mock(side_effect=side_effect)
+            client = GitHubClient(token="test-token", base_url=BASE, timeout=5, backoff_base=0.0)
+            with patch("opencode_github.github_client.time.time", return_value=100.0):
+                data = await client.get_repo("owner", "repo")
+
+        assert data == {"ok": True}
+
+
+class TestCreatePullRequest:
+    async def test_success(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
+        mock_router.post("/repos/owner/repo/pulls").mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "number": 5,
+                    "title": "New Feature",
+                    "head": {"ref": "feature-branch"},
+                    "base": {"ref": "main"},
+                    "body": "Adds a feature",
+                },
+            )
+        )
+        pr = await client.create_pull_request(
+            "owner", "repo", title="New Feature", head="feature-branch", base="main"
+        )
+        assert isinstance(pr, PullRequest)
+        assert pr.number == 5
+        assert pr.title == "New Feature"
+
+
+class TestUpdateFile:
+    async def test_success(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
+        mock_router.put("/repos/owner/repo/contents/path/to/file.txt").mock(
+            return_value=httpx.Response(
+                201,
+                json={"content": {"sha": "abc123"}, "commit": {"sha": "def456"}},
+            )
+        )
+        result = await client.update_file(
+            "owner",
+            "repo",
+            path="path/to/file.txt",
+            message="Update file",
+            content_b64="SGVsbG8=",
+            branch="main",
+        )
+        assert result["content"]["sha"] == "abc123"
+
+
+class TestCreateCommitStatus:
+    async def test_success(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
+        mock_router.post("/repos/owner/repo/statuses/abc123").mock(
+            return_value=httpx.Response(
+                201,
+                json={"state": "success", "context": "opencode"},
+            )
+        )
+        result = await client.create_commit_status(
+            "owner", "repo", sha="abc123", state="success", description="All good"
+        )
+        assert result["state"] == "success"

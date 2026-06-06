@@ -12,6 +12,7 @@ from opencode_github.github_client import (
     GitHubClient,
     IssueComment,
     PullRequest,
+    RateLimitError,
 )
 from opencode_github.handler import HandlerResult, WebhookProcessor
 from opencode_github.webhook_handler import (
@@ -32,6 +33,7 @@ __all__ = [
     "IssueComment",
     "ParsedCommand",
     "PullRequest",
+    "RateLimitError",
     "WebhookEvent",
     "WebhookProcessor",
     "classify_event",
