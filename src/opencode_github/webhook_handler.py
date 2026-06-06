@@ -102,12 +102,18 @@ def parse_payload(event_type: EventType, payload: dict[str, Any]) -> WebhookEven
     elif event_type == EventType.PR_REVIEW_COMMENT:
         issue_number = payload.get("pull_request", {}).get("number", 0)
 
+    comment_id = comment.get("id", 0)
+    sender_login = comment.get("user", {}).get("login", "")
+
+    if not comment_id or not sender_login or not issue_number:
+        return None
+
     return WebhookEvent(
         event_type=event_type,
         action=action,
         comment_body=comment.get("body", ""),
-        comment_id=comment.get("id", 0),
-        sender_login=comment.get("user", {}).get("login", ""),
+        comment_id=comment_id,
+        sender_login=sender_login,
         repo_owner=owner_data.get("login", ""),
         repo_name=repo_data.get("name", ""),
         issue_number=issue_number,

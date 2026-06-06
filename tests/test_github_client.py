@@ -105,6 +105,52 @@ class TestListIssueComments:
         )
         assert comments[1].body == ""
 
+    async def test_empty_response(
+        self, mock_router: respx.MockRouter, client: GitHubClient
+    ) -> None:
+        mock_router.get("/repos/owner/repo/issues/1/comments").mock(
+            return_value=httpx.Response(200, json=[])
+        )
+        comments = await client.list_issue_comments("owner", "repo", 1)
+        assert comments == []
+
+    async def test_pagination(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
+        """Verify the client follows pagination when a full page is returned."""
+        page1 = [
+            {
+                "id": i,
+                "body": f"comment {i}",
+                "user": {"login": "user"},
+                "html_url": f"https://github.com/o/r/issues/1#issuecomment-{i}",
+            }
+            for i in range(100)
+        ]
+        page2 = [
+            {
+                "id": 200,
+                "body": "last",
+                "user": {"login": "user"},
+                "html_url": "https://github.com/o/r/issues/1#issuecomment-200",
+            }
+        ]
+
+        call_count = 0
+
+        def side_effect(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            page = int(request.url.params.get("page", "1"))
+            if page == 1:
+                return httpx.Response(200, json=page1)
+            return httpx.Response(200, json=page2)
+
+        mock_router.get("/repos/o/r/issues/1/comments").mock(side_effect=side_effect)
+
+        comments = await client.list_issue_comments("o", "r", 1)
+        assert len(comments) == 101
+        assert comments[-1].body == "last"
+        assert call_count == 2
+
 
 class TestCreateIssueComment:
     async def test_success(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
@@ -153,3 +199,28 @@ class TestContextManager:
     async def test_async_with(self) -> None:
         async with GitHubClient(token="tok") as c:
             assert c._token == "tok"
+
+
+class TestRedirectHandling:
+    async def test_3xx_raises(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
+        mock_router.get("/repos/owner/repo").mock(
+            return_value=httpx.Response(
+                301, headers={"location": "https://api.github.com/repos/new-owner/repo"}
+            )
+        )
+        with pytest.raises(GitHubAPIError) as exc_info:
+            await client.get_repo("owner", "repo")
+        assert exc_info.value.status_code == 301
+        assert "redirect" in exc_info.value.detail.lower()
+
+
+class TestInvalidJsonResponse:
+    async def test_invalid_json_raises(
+        self, mock_router: respx.MockRouter, client: GitHubClient
+    ) -> None:
+        mock_router.get("/repos/owner/repo").mock(
+            return_value=httpx.Response(200, text="not json at all")
+        )
+        with pytest.raises(GitHubAPIError) as exc_info:
+            await client.get_repo("owner", "repo")
+        assert "Invalid JSON" in exc_info.value.detail
