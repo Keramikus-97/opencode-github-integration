@@ -116,10 +116,32 @@ def parse_payload(event_type: EventType, payload: dict[str, Any]) -> WebhookEven
 
 
 def parse_raw(event_header: str, body: bytes) -> WebhookEvent | None:
-    """Convenience wrapper: classify, decode JSON, and parse in one call."""
+    """Convenience wrapper: classify, decode JSON, and parse in one call.
+
+    .. warning::
+        This function does NOT verify the webhook signature. Call
+        :func:`verify_signature` before this or use :func:`parse_raw_verified`
+        for a safe all-in-one path.
+    """
     event_type = classify_event(event_header)
     try:
         payload = json.loads(body)
     except (json.JSONDecodeError, UnicodeDecodeError):
         return None
     return parse_payload(event_type, payload)
+
+
+def parse_raw_verified(
+    event_header: str,
+    body: bytes,
+    signature: str,
+    secret: str,
+) -> WebhookEvent | None:
+    """Classify, verify signature, decode JSON, and parse — safe all-in-one path.
+
+    Returns ``None`` if signature verification fails or the payload is
+    unsupported/malformed.
+    """
+    if not verify_signature(body, signature, secret):
+        return None
+    return parse_raw(event_header, body)

@@ -17,6 +17,15 @@ class Config:
     allowed_commands: list[str] = field(default_factory=lambda: ["/oc", "/opencode"])
     request_timeout: int = 30
 
+    def __repr__(self) -> str:
+        """Mask secrets to prevent accidental exposure in logs or tracebacks."""
+        return (
+            f"Config(github_token='***', anthropic_api_key='***', "
+            f"model={self.model!r}, github_api_url={self.github_api_url!r}, "
+            f"allowed_commands={self.allowed_commands!r}, "
+            f"request_timeout={self.request_timeout!r})"
+        )
+
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> Config:
         """Build a ``Config`` from environment variables.
