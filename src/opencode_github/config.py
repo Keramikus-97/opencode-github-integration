@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -51,6 +54,10 @@ class Config:
         try:
             request_timeout = int(timeout_raw)
         except ValueError:
+            logger.warning(
+                "Invalid OPENCODE_TIMEOUT value %r, falling back to 30 seconds",
+                timeout_raw,
+            )
             request_timeout = 30
 
         return cls(
