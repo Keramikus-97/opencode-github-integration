@@ -34,7 +34,7 @@ File and folder paths inside `.gitattributes` are calculated relative to the pos
  | `linguist-detectable`                          | [`languages.yml`]     | Included in stats, even if language's type is `data` or `prose` |
  | `linguist-documentation`                       | [`documentation.yml`] | Excluded from stats                                             |
  | `linguist-generated`                           | [`generated.rb`]      | Excluded from stats, hidden in diffs                            |
- | `linguist-language`=*name*                     | [`languages.yml`]     | Highlighted and classified as *name*                            |
+ | `linguist-language`=_name_                     | [`languages.yml`]     | Highlighted and classified as _name_                            |
  | `linguist-vendored`                            | [`vendor.yml`]        | Excluded from stats                                             |
 <!------------------------------------------------------------------------------------------------------------------------------------------->
 
@@ -125,7 +125,6 @@ vim: set ft=cpp:
 [`languages.yml`]:     /lib/linguist/languages.yml
 [`generated.rb`]:      /lib/linguist/generated.rb
 [`vendor.yml`]:        /lib/linguist/vendor.yml
-
 
 [def]: https://git-scm.com/docs/gitattributes
 [def2]: #using-emacs-or-vim-modelines
