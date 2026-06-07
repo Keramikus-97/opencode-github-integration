@@ -255,14 +255,24 @@ class TestScoreAssumption:
         assert score >= 55
 
     def test_category_weights_differ(self) -> None:
-        base = dict(
-            statement="test",
-            evidence="long evidence for scoring",
-            impact_on_argument="long impact assessment",
-            confidence=0.5,
+        causal = score_assumption(
+            Assumption(
+                statement="test",
+                category=AssumptionCategory.CAUSAL,
+                evidence="long evidence for scoring",
+                impact_on_argument="long impact assessment",
+                confidence=0.5,
+            )
         )
-        causal = score_assumption(Assumption(category=AssumptionCategory.CAUSAL, **base))
-        audience = score_assumption(Assumption(category=AssumptionCategory.AUDIENCE, **base))
+        audience = score_assumption(
+            Assumption(
+                statement="test",
+                category=AssumptionCategory.AUDIENCE,
+                evidence="long evidence for scoring",
+                impact_on_argument="long impact assessment",
+                confidence=0.5,
+            )
+        )
         assert causal > audience
 
 

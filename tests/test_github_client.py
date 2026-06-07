@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import httpx
 import pytest
 import respx
@@ -17,7 +19,7 @@ BASE = "https://api.github.com"
 
 
 @pytest.fixture()
-def mock_router() -> respx.MockRouter:
+def mock_router() -> Iterator[respx.MockRouter]:
     with respx.mock(base_url=BASE, assert_all_called=False) as router:
         yield router
 
