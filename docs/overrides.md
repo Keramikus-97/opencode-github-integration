@@ -80,6 +80,7 @@ Use the `linguist-generated` attribute to mark or unmark paths as generated.
 
 ```gitattributes
 Api.elm linguist-generated
+json Api.elm linguist-generated
 ```
 
 ### Vendored code
