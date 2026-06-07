@@ -87,9 +87,11 @@ class LearnerProfile:
         events: list[str] = []
         self.xp += amount
 
-        while self.xp >= sum(i * 100 for i in range(1, self.level + 1)):
+        xp_threshold = sum(i * 100 for i in range(1, self.level + 1))
+        while self.xp >= xp_threshold:
             self.level += 1
             events.append(f"level_up:{self.level}")
+            xp_threshold += self.level * 100
 
         return events
 

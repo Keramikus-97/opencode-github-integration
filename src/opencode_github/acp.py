@@ -154,6 +154,10 @@ def validate_message(data: dict[str, Any]) -> ACPMessage | None:
     if not isinstance(data["timestamp"], (int, float)):
         return None
 
+    correlation_id = data.get("correlation_id")
+    if correlation_id is not None and not isinstance(correlation_id, str):
+        return None
+
     return ACPMessage(
         message_id=str(data["message_id"]),
         message_type=msg_type,
@@ -162,7 +166,7 @@ def validate_message(data: dict[str, Any]) -> ACPMessage | None:
         payload=data["payload"],
         timestamp=float(data["timestamp"]),
         protocol_version=str(data.get("protocol_version", ACPVersion.V1.value)),
-        correlation_id=data.get("correlation_id"),
+        correlation_id=correlation_id,
     )
 
 
@@ -186,7 +190,7 @@ def create_heartbeat(agent_id: str, editor_id: str, status: AgentStatus) -> ACPM
         message_type=ACPMessageType.HEARTBEAT,
         sender_id=agent_id,
         recipient_id=editor_id,
-        payload={"status": status.value, "timestamp": time.time()},
+        payload={"status": status.value},
     )
 
 

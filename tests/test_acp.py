@@ -152,6 +152,18 @@ class TestValidateMessage:
         }
         assert validate_message(data) is None
 
+    def test_invalid_correlation_id_type(self) -> None:
+        data = {
+            "message_id": "msg-1",
+            "message_type": "heartbeat",
+            "sender_id": "a",
+            "recipient_id": "b",
+            "payload": {},
+            "timestamp": time.time(),
+            "correlation_id": 12345,
+        }
+        assert validate_message(data) is None
+
     def test_with_optional_fields(self) -> None:
         data = {
             "message_id": "msg-1",

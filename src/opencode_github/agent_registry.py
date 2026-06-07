@@ -163,12 +163,16 @@ class AgentRegistry:
         return True
 
     def remove_from_space(self, agent_id: str, space_id: str) -> bool:
-        """Disassociate an agent from a Space.  Returns ``False`` if unknown."""
+        """Disassociate an agent from a Space.
+
+        Returns ``False`` if the agent is unknown or was not in the space.
+        """
         agent = self._agents.get(agent_id)
         if agent is None:
             return False
-        if space_id in agent.space_ids:
-            agent.space_ids.remove(space_id)
+        if space_id not in agent.space_ids:
+            return False
+        agent.space_ids.remove(space_id)
         return True
 
     def prune_stale(self) -> list[str]:

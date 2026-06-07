@@ -333,7 +333,7 @@ class TestSpaceAssociation:
         self, registry: AgentRegistry, opencode_reg: ACPRegistration
     ) -> None:
         registry.register(opencode_reg)
-        assert registry.remove_from_space("opencode-1", "space-99") is True
+        assert registry.remove_from_space("opencode-1", "space-99") is False
 
     def test_remove_from_space_nonexistent(self, registry: AgentRegistry) -> None:
         assert registry.remove_from_space("nonexistent", "space-1") is False
