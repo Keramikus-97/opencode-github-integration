@@ -134,5 +134,16 @@ class GitHubClient:
             json={"content": reaction},
         )
 
+    async def get_user_permission(self, owner: str, repo: str, username: str) -> str:
+        """Return the permission level of *username* on *owner/repo*.
+
+        Returns one of ``"admin"``, ``"maintain"``, ``"write"``,
+        ``"triage"``, ``"read"``, or ``"none"``.
+        """
+        data = await self._request(
+            "GET", f"/repos/{owner}/{repo}/collaborators/{username}/permission"
+        )
+        return data.get("permission", "none")
+
     async def get_repo(self, owner: str, repo: str) -> dict[str, Any]:
         return await self._request("GET", f"/repos/{owner}/{repo}")
