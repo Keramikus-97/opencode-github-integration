@@ -164,6 +164,51 @@ class TestValidateMessage:
         }
         assert validate_message(data) is None
 
+    def test_non_string_message_id(self) -> None:
+        data = {
+            "message_id": 12345,
+            "message_type": "heartbeat",
+            "sender_id": "a",
+            "recipient_id": "b",
+            "payload": {},
+            "timestamp": time.time(),
+        }
+        assert validate_message(data) is None
+
+    def test_non_string_sender_id(self) -> None:
+        data = {
+            "message_id": "msg-1",
+            "message_type": "heartbeat",
+            "sender_id": None,
+            "recipient_id": "b",
+            "payload": {},
+            "timestamp": time.time(),
+        }
+        assert validate_message(data) is None
+
+    def test_non_string_recipient_id(self) -> None:
+        data = {
+            "message_id": "msg-1",
+            "message_type": "heartbeat",
+            "sender_id": "a",
+            "recipient_id": 99,
+            "payload": {},
+            "timestamp": time.time(),
+        }
+        assert validate_message(data) is None
+
+    def test_non_string_protocol_version(self) -> None:
+        data = {
+            "message_id": "msg-1",
+            "message_type": "heartbeat",
+            "sender_id": "a",
+            "recipient_id": "b",
+            "payload": {},
+            "timestamp": time.time(),
+            "protocol_version": 1.0,
+        }
+        assert validate_message(data) is None
+
     def test_with_optional_fields(self) -> None:
         data = {
             "message_id": "msg-1",
@@ -313,6 +358,11 @@ class TestNegotiateVersion:
     def test_empty_client_versions(self) -> None:
         result = negotiate_version([])
         assert result is None
+
+    def test_semantic_version_ordering(self) -> None:
+        """Ensure versions are compared numerically, not lexicographically."""
+        result = negotiate_version(["1.0", "1.1"], server_versions=["1.0", "1.1"])
+        assert result == "1.1"
 
 
 # --- OpenCode Registration Tests ---

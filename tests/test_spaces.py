@@ -238,6 +238,23 @@ class TestMergeSpaces:
         merge_spaces(target, source)
         assert target.members.count("a-1") == 1
 
+    def test_merge_copies_tags(self) -> None:
+        target = create_space("Target", tags=["backend"])
+        source = create_space("Source", tags=["frontend", "api"])
+
+        merge_spaces(target, source)
+        assert "backend" in target.tags
+        assert "frontend" in target.tags
+        assert "api" in target.tags
+
+    def test_merge_no_duplicate_tags(self) -> None:
+        target = create_space("Target", tags=["shared", "backend"])
+        source = create_space("Source", tags=["shared", "frontend"])
+
+        merge_spaces(target, source)
+        assert target.tags.count("shared") == 1
+        assert "frontend" in target.tags
+
 
 # --- Filter Tests ---
 

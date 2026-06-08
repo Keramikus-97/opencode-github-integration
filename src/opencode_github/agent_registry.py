@@ -48,7 +48,12 @@ class RegisteredAgent:
             "agent_type": self.agent_type,
             "status": self.status.value,
             "capabilities": [
-                {"name": c.name, "version": c.version, "description": c.description}
+                {
+                    "name": c.name,
+                    "version": c.version,
+                    "description": c.description,
+                    "parameters": c.parameters,
+                }
                 for c in self.capabilities
             ],
             "registered_at": self.registered_at,
@@ -115,10 +120,18 @@ class AgentRegistry:
         agent.status = status
         return True
 
+    _NON_ASSIGNABLE = frozenset({AgentStatus.ERROR, AgentStatus.OFFLINE, AgentStatus.SHUTTING_DOWN})
+
     def assign_task(self, agent_id: str, task_description: str) -> bool:
-        """Mark an agent as busy with a task.  Returns ``False`` if unknown."""
+        """Mark an agent as busy with a task.
+
+        Returns ``False`` if the agent is unknown or in a non-assignable
+        state (``ERROR``, ``OFFLINE``, ``SHUTTING_DOWN``).
+        """
         agent = self._agents.get(agent_id)
         if agent is None:
+            return False
+        if agent.status in self._NON_ASSIGNABLE:
             return False
         agent.status = AgentStatus.BUSY
         agent.current_task = task_description

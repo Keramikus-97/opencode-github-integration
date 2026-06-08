@@ -151,6 +151,10 @@ def validate_message(data: dict[str, Any]) -> ACPMessage | None:
     if not isinstance(data["payload"], dict):
         return None
 
+    for str_field in ("message_id", "sender_id", "recipient_id"):
+        if not isinstance(data[str_field], str):
+            return None
+
     if not isinstance(data["timestamp"], (int, float)):
         return None
 
@@ -158,14 +162,18 @@ def validate_message(data: dict[str, Any]) -> ACPMessage | None:
     if correlation_id is not None and not isinstance(correlation_id, str):
         return None
 
+    raw_version = data.get("protocol_version", ACPVersion.V1.value)
+    if not isinstance(raw_version, str):
+        return None
+
     return ACPMessage(
-        message_id=str(data["message_id"]),
+        message_id=data["message_id"],
         message_type=msg_type,
-        sender_id=str(data["sender_id"]),
-        recipient_id=str(data["recipient_id"]),
+        sender_id=data["sender_id"],
+        recipient_id=data["recipient_id"],
         payload=data["payload"],
         timestamp=float(data["timestamp"]),
-        protocol_version=str(data.get("protocol_version", ACPVersion.V1.value)),
+        protocol_version=raw_version,
         correlation_id=correlation_id,
     )
 
@@ -255,8 +263,10 @@ def negotiate_version(
     supported = {v.value for v in ACPVersion}
     if server_versions is not None:
         supported = supported & set(server_versions)
-    overlap = sorted(supported & set(client_versions), reverse=True)
-    return overlap[0] if overlap else None
+    overlap = supported & set(client_versions)
+    if not overlap:
+        return None
+    return max(overlap, key=lambda v: tuple(int(p) for p in v.split(".")))
 
 
 def build_opencode_registration(

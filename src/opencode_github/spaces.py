@@ -181,6 +181,12 @@ def merge_spaces(target: Space, source: Space) -> int:
     for member in source.members:
         target.add_member(member)
 
+    existing_tags = set(target.tags)
+    for tag in source.tags:
+        if tag not in existing_tags:
+            target.tags.append(tag)
+            existing_tags.add(tag)
+
     return added
 
 

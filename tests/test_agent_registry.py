@@ -115,6 +115,25 @@ class TestRegisteredAgent:
         assert d["current_task"] == "Working on PR"
         assert d["space_ids"] == ["space-1"]
 
+    def test_to_dict_includes_capability_parameters(self) -> None:
+        cap = ACPCapability(
+            name="slash_commands",
+            version="1.0",
+            description="Handle slash commands",
+            parameters={"triggers": "/oc,/opencode"},
+        )
+        agent = RegisteredAgent(
+            agent_id="a-1",
+            agent_name="Test",
+            agent_type="test",
+            status=AgentStatus.IDLE,
+            capabilities=[cap],
+            registered_at=1000.0,
+            last_heartbeat=2000.0,
+        )
+        d = agent.to_dict()
+        assert d["capabilities"][0]["parameters"] == {"triggers": "/oc,/opencode"}
+
 
 # --- Registry Registration Tests ---
 
@@ -209,6 +228,27 @@ class TestTaskManagement:
 
     def test_assign_task_nonexistent(self, registry: AgentRegistry) -> None:
         assert registry.assign_task("nonexistent", "task") is False
+
+    def test_assign_task_rejects_error_agent(
+        self, registry: AgentRegistry, opencode_reg: ACPRegistration
+    ) -> None:
+        registry.register(opencode_reg)
+        registry.update_status("opencode-1", AgentStatus.ERROR)
+        assert registry.assign_task("opencode-1", "task") is False
+
+    def test_assign_task_rejects_offline_agent(
+        self, registry: AgentRegistry, opencode_reg: ACPRegistration
+    ) -> None:
+        registry.register(opencode_reg)
+        registry.update_status("opencode-1", AgentStatus.OFFLINE)
+        assert registry.assign_task("opencode-1", "task") is False
+
+    def test_assign_task_rejects_shutting_down_agent(
+        self, registry: AgentRegistry, opencode_reg: ACPRegistration
+    ) -> None:
+        registry.register(opencode_reg)
+        registry.update_status("opencode-1", AgentStatus.SHUTTING_DOWN)
+        assert registry.assign_task("opencode-1", "task") is False
 
     def test_complete_task(self, registry: AgentRegistry, opencode_reg: ACPRegistration) -> None:
         registry.register(opencode_reg)
