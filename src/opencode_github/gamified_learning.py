@@ -79,7 +79,8 @@ class LearnerProfile:
     def xp_progress(self) -> float:
         """Progress toward the next level as a fraction (0.0 to 1.0)."""
         required = self.xp_for_next_level
-        current_level_xp = self.xp - sum(i * 100 for i in range(1, self.level))
+        cumulative_xp_to_current = 100 * self.level * (self.level - 1) // 2
+        current_level_xp = self.xp - cumulative_xp_to_current
         return min(1.0, max(0.0, current_level_xp / required))
 
     def add_xp(self, amount: int) -> list[str]:
@@ -87,9 +88,11 @@ class LearnerProfile:
         events: list[str] = []
         self.xp += amount
 
-        while self.xp >= sum(i * 100 for i in range(1, self.level + 1)):
+        xp_threshold = sum(i * 100 for i in range(1, self.level + 1))
+        while self.xp >= xp_threshold:
             self.level += 1
             events.append(f"level_up:{self.level}")
+            xp_threshold += self.level * 100
 
         return events
 
