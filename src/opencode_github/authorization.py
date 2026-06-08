@@ -7,7 +7,7 @@ any extracted commands.
 
 from __future__ import annotations
 
-from opencode_github.github_client import GitHubAPIError, GitHubClient
+from opencode_github.github_client import GitHubClient
 from opencode_github.webhook_handler import WebhookEvent
 
 # GitHub permission levels in descending order of privilege.
@@ -65,8 +65,9 @@ async def check_event_authorization(
         permission = await client.get_user_permission(
             event.repo_owner, event.repo_name, event.sender_login
         )
-    except GitHubAPIError:
-        # If we cannot determine permission, deny by default.
+    except Exception:
+        # If we cannot determine permission (API error, network timeout, etc.),
+        # deny by default.
         permission = "none"
 
     authorized = is_authorized(permission, min_level)
@@ -81,7 +82,7 @@ async def check_event_authorization(
             await client.create_issue_comment(
                 event.repo_owner, event.repo_name, event.issue_number, body
             )
-        except GitHubAPIError:
+        except Exception:
             pass  # Best-effort; don't fail the whole flow.
 
     return authorized

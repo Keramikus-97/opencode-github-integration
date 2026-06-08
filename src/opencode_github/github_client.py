@@ -137,7 +137,8 @@ class GitHubClient:
     async def get_user_permission(self, owner: str, repo: str, username: str) -> str:
         """Return the permission level of *username* on *owner/repo*.
 
-        Returns one of ``"admin"``, ``"write"``, ``"read"``, or ``"none"``.
+        Returns one of ``"admin"``, ``"maintain"``, ``"write"``,
+        ``"triage"``, ``"read"``, or ``"none"``.
         """
         data = await self._request(
             "GET", f"/repos/{owner}/{repo}/collaborators/{username}/permission"
