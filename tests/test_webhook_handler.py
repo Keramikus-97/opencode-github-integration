@@ -94,16 +94,40 @@ class TestParsePayload:
         payload = {"action": "created", "repository": {"name": "r", "owner": {"login": "o"}}}
         assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
 
-    def test_missing_repo_info(self) -> None:
+    def test_missing_repo_info_still_returns_none_if_no_issue(self) -> None:
+        """Without an issue number, parse_payload returns None (validation)."""
         payload = {
             "action": "created",
             "comment": {"id": 1, "body": "x", "user": {"login": "u"}, "html_url": ""},
-            "issue": {"number": 1},
         }
-        event = parse_payload(EventType.ISSUE_COMMENT, payload)
-        assert event is not None
-        assert event.repo_owner == ""
-        assert event.repo_name == ""
+        assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
+
+    def test_missing_comment_id_returns_none(self) -> None:
+        payload = {
+            "action": "created",
+            "comment": {"id": 0, "body": "/oc hi", "user": {"login": "u"}, "html_url": ""},
+            "issue": {"number": 1},
+            "repository": {"name": "r", "owner": {"login": "o"}},
+        }
+        assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
+
+    def test_missing_sender_login_returns_none(self) -> None:
+        payload = {
+            "action": "created",
+            "comment": {"id": 1, "body": "/oc hi", "user": {"login": ""}, "html_url": ""},
+            "issue": {"number": 1},
+            "repository": {"name": "r", "owner": {"login": "o"}},
+        }
+        assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
+
+    def test_missing_issue_number_returns_none(self) -> None:
+        payload = {
+            "action": "created",
+            "comment": {"id": 1, "body": "/oc hi", "user": {"login": "u"}, "html_url": ""},
+            "issue": {"number": 0},
+            "repository": {"name": "r", "owner": {"login": "o"}},
+        }
+        assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
 
 
 class TestParseRaw:

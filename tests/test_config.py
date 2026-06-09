@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from opencode_github.config import Config
+from opencode_github.config import DEFAULT_TIMEOUT, MAX_TIMEOUT, MIN_TIMEOUT, Config
 
 
 class TestConfigFromEnv:
@@ -42,7 +42,32 @@ class TestConfigFromEnv:
     def test_invalid_timeout_falls_back(self, minimal_env: dict[str, str]) -> None:
         minimal_env["OPENCODE_TIMEOUT"] = "not_a_number"
         cfg = Config.from_env(minimal_env)
-        assert cfg.request_timeout == 30
+        assert cfg.request_timeout == DEFAULT_TIMEOUT
+
+    def test_negative_timeout_clamped(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = "-5"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MIN_TIMEOUT
+
+    def test_zero_timeout_clamped(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = "0"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MIN_TIMEOUT
+
+    def test_excessive_timeout_clamped(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = "9999"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MAX_TIMEOUT
+
+    def test_boundary_min_timeout(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = str(MIN_TIMEOUT)
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MIN_TIMEOUT
+
+    def test_boundary_max_timeout(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = str(MAX_TIMEOUT)
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MAX_TIMEOUT
 
     def test_whitespace_stripped(self, minimal_env: dict[str, str]) -> None:
         minimal_env["GITHUB_TOKEN"] = "  token_with_spaces  "

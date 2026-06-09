@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
+
+MIN_TIMEOUT = 1
+MAX_TIMEOUT = 300
+DEFAULT_TIMEOUT = 30
 
 
 @dataclass(frozen=True)
@@ -47,11 +54,25 @@ class Config:
         allowed_raw = env.get("OPENCODE_COMMANDS", "/oc,/opencode").strip()
         allowed_commands = [cmd.strip() for cmd in allowed_raw.split(",") if cmd.strip()]
 
-        timeout_raw = env.get("OPENCODE_TIMEOUT", "30").strip()
+        timeout_raw = env.get("OPENCODE_TIMEOUT", str(DEFAULT_TIMEOUT)).strip()
         try:
             request_timeout = int(timeout_raw)
         except ValueError:
-            request_timeout = 30
+            logger.warning(
+                "Invalid OPENCODE_TIMEOUT value %r, falling back to %d",
+                timeout_raw,
+                DEFAULT_TIMEOUT,
+            )
+            request_timeout = DEFAULT_TIMEOUT
+
+        if request_timeout < MIN_TIMEOUT or request_timeout > MAX_TIMEOUT:
+            logger.warning(
+                "OPENCODE_TIMEOUT=%d out of range [%d, %d], clamping",
+                request_timeout,
+                MIN_TIMEOUT,
+                MAX_TIMEOUT,
+            )
+            request_timeout = max(MIN_TIMEOUT, min(request_timeout, MAX_TIMEOUT))
 
         return cls(
             github_token=github_token,

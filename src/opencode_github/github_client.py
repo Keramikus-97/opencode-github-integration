@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,7 @@ class GitHubClient:
                 "X-GitHub-Api-Version": "2022-11-28",
             },
             timeout=timeout,
+            follow_redirects=False,
         )
 
     async def close(self) -> None:
@@ -82,9 +86,20 @@ class GitHubClient:
         resp = await self._client.request(method, path, **kwargs)
         if resp.status_code >= 400:
             raise GitHubAPIError(resp.status_code, resp.text)
+        if resp.is_redirect or resp.status_code >= 300:
+            raise GitHubAPIError(
+                resp.status_code,
+                f"Unexpected redirect to {resp.headers.get('location', '?')}",
+            )
         if resp.status_code == 204:
             return None
-        return resp.json()
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise GitHubAPIError(
+                resp.status_code,
+                f"Invalid JSON in response body: {exc}",
+            ) from exc
 
     async def get_pull_request(self, owner: str, repo: str, number: int) -> PullRequest:
         data = await self._request("GET", f"/repos/{owner}/{repo}/pulls/{number}")
@@ -97,18 +112,39 @@ class GitHubClient:
         )
 
     async def list_issue_comments(
-        self, owner: str, repo: str, issue_number: int
+        self, owner: str, repo: str, issue_number: int, *, max_pages: int = 10
     ) -> list[IssueComment]:
-        data = await self._request("GET", f"/repos/{owner}/{repo}/issues/{issue_number}/comments")
-        return [
-            IssueComment(
-                id=c["id"],
-                body=c.get("body") or "",
-                user_login=c["user"]["login"],
-                html_url=c["html_url"],
+        """Fetch all comments for an issue, following pagination.
+
+        Parameters
+        ----------
+        max_pages:
+            Safety limit to prevent runaway pagination. Defaults to 10
+            (up to 1000 comments at 100 per page).
+        """
+        comments: list[IssueComment] = []
+        page = 1
+        while page <= max_pages:
+            data = await self._request(
+                "GET",
+                f"/repos/{owner}/{repo}/issues/{issue_number}/comments",
+                params={"per_page": 100, "page": page},
             )
-            for c in data
-        ]
+            if not data:
+                break
+            comments.extend(
+                IssueComment(
+                    id=c["id"],
+                    body=c.get("body") or "",
+                    user_login=c["user"]["login"],
+                    html_url=c["html_url"],
+                )
+                for c in data
+            )
+            if len(data) < 100:
+                break
+            page += 1
+        return comments
 
     async def create_issue_comment(
         self, owner: str, repo: str, issue_number: int, body: str
