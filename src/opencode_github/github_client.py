@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
+
+_SAFE_PATH_SEGMENT = re.compile(r"^[a-zA-Z0-9._-]+$")
+
+
+def _validate_path_segment(value: str, name: str) -> str:
+    """Ensure a URL path segment contains no path-traversal characters."""
+    if not value or not _SAFE_PATH_SEGMENT.match(value):
+        raise ValueError(f"Invalid {name}: {value!r}")
+    return value
 
 
 @dataclass(frozen=True)
@@ -87,6 +97,8 @@ class GitHubClient:
         return resp.json()
 
     async def get_pull_request(self, owner: str, repo: str, number: int) -> PullRequest:
+        _validate_path_segment(owner, "owner")
+        _validate_path_segment(repo, "repo")
         data = await self._request("GET", f"/repos/{owner}/{repo}/pulls/{number}")
         return PullRequest(
             number=data["number"],
@@ -99,6 +111,8 @@ class GitHubClient:
     async def list_issue_comments(
         self, owner: str, repo: str, issue_number: int
     ) -> list[IssueComment]:
+        _validate_path_segment(owner, "owner")
+        _validate_path_segment(repo, "repo")
         data = await self._request("GET", f"/repos/{owner}/{repo}/issues/{issue_number}/comments")
         return [
             IssueComment(
@@ -113,6 +127,8 @@ class GitHubClient:
     async def create_issue_comment(
         self, owner: str, repo: str, issue_number: int, body: str
     ) -> IssueComment:
+        _validate_path_segment(owner, "owner")
+        _validate_path_segment(repo, "repo")
         data = await self._request(
             "POST",
             f"/repos/{owner}/{repo}/issues/{issue_number}/comments",
@@ -128,6 +144,8 @@ class GitHubClient:
     async def add_reaction(
         self, owner: str, repo: str, comment_id: int, reaction: str = "+1"
     ) -> None:
+        _validate_path_segment(owner, "owner")
+        _validate_path_segment(repo, "repo")
         await self._request(
             "POST",
             f"/repos/{owner}/{repo}/issues/comments/{comment_id}/reactions",
@@ -135,4 +153,6 @@ class GitHubClient:
         )
 
     async def get_repo(self, owner: str, repo: str) -> dict[str, Any]:
+        _validate_path_segment(owner, "owner")
+        _validate_path_segment(repo, "repo")
         return await self._request("GET", f"/repos/{owner}/{repo}")
