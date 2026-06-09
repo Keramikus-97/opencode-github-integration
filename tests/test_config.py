@@ -44,6 +44,38 @@ class TestConfigFromEnv:
         cfg = Config.from_env(minimal_env)
         assert cfg.request_timeout == 30
 
+    def test_default_retry_settings(self, minimal_env: dict[str, str]) -> None:
+        cfg = Config.from_env(minimal_env)
+        assert cfg.max_retries == 3
+        assert cfg.backoff_factor == 0.5
+
+    def test_custom_retry_settings(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_MAX_RETRIES"] = "6"
+        minimal_env["OPENCODE_BACKOFF_FACTOR"] = "2.5"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.max_retries == 6
+        assert cfg.backoff_factor == 2.5
+
+    def test_invalid_max_retries_falls_back(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_MAX_RETRIES"] = "lots"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.max_retries == 3
+
+    def test_negative_max_retries_clamped_to_zero(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_MAX_RETRIES"] = "-2"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.max_retries == 0
+
+    def test_invalid_backoff_factor_falls_back(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_BACKOFF_FACTOR"] = "fast"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.backoff_factor == 0.5
+
+    def test_negative_backoff_factor_falls_back(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_BACKOFF_FACTOR"] = "-1.0"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.backoff_factor == 0.5
+
     def test_whitespace_stripped(self, minimal_env: dict[str, str]) -> None:
         minimal_env["GITHUB_TOKEN"] = "  token_with_spaces  "
         minimal_env["ANTHROPIC_API_KEY"] = "\tkey_with_tabs\t"
