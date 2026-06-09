@@ -439,6 +439,58 @@ class TestRetryAndRateLimit:
         assert sleep_stub.calls[0] > 0
 
 
+class TestIdempotencyAwareRetry:
+    async def test_post_5xx_not_retried(
+        self,
+        mock_router: respx.MockRouter,
+        client: GitHubClient,
+        sleep_stub: RecordingSleep,
+    ) -> None:
+        mock_router.post("/repos/owner/repo/issues/1/comments").mock(
+            return_value=httpx.Response(503, text="unavailable")
+        )
+        with pytest.raises(GitHubAPIError) as exc_info:
+            await client.create_issue_comment("owner", "repo", 1, "hi")
+        assert exc_info.value.status_code == 503
+        assert sleep_stub.calls == []
+
+    async def test_post_transport_error_not_retried(
+        self,
+        mock_router: respx.MockRouter,
+        client: GitHubClient,
+        sleep_stub: RecordingSleep,
+    ) -> None:
+        mock_router.post("/repos/owner/repo/issues/1/comments").mock(
+            side_effect=httpx.ConnectError("boom")
+        )
+        with pytest.raises(httpx.ConnectError):
+            await client.create_issue_comment("owner", "repo", 1, "hi")
+        assert sleep_stub.calls == []
+
+    async def test_post_rate_limit_is_retried(
+        self,
+        mock_router: respx.MockRouter,
+        client: GitHubClient,
+        sleep_stub: RecordingSleep,
+    ) -> None:
+        route = mock_router.post("/repos/owner/repo/issues/1/comments")
+        route.side_effect = [
+            httpx.Response(429, headers={"retry-after": "2"}, text="slow down"),
+            httpx.Response(
+                201,
+                json={
+                    "id": 5,
+                    "body": "hi",
+                    "user": {"login": "octocat"},
+                    "html_url": "https://github.com/x",
+                },
+            ),
+        ]
+        comment = await client.create_issue_comment("owner", "repo", 1, "hi")
+        assert comment.id == 5
+        assert sleep_stub.calls == [2.0]
+
+
 class TestFromConfig:
     def test_threads_config_values(self) -> None:
         from opencode_github.config import Config

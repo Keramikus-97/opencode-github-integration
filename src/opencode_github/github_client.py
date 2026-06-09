@@ -16,6 +16,11 @@ from opencode_github.config import Config
 # Server-side status codes worth retrying as transient failures.
 RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({500, 502, 503, 504})
 
+# HTTP methods that are safe to retry on transient (5xx / network) failures.
+# Non-idempotent methods (e.g. POST) are excluded so a partially-applied request
+# is not duplicated.
+IDEMPOTENT_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "PUT", "DELETE"})
+
 
 @dataclass(frozen=True)
 class PullRequest:
@@ -207,16 +212,20 @@ class GitHubClient:
         return RateLimitError(resp.status_code, resp.text, retry_after, reset_at)
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        # Transient failures (network errors, 5xx) are only retried for
+        # idempotent methods; a rate-limited response means the request was
+        # rejected before taking effect, so it is safe to retry for any method.
+        retry_transient = method.upper() in IDEMPOTENT_METHODS
         attempt = 0
         while True:
             try:
                 resp = await self._client.request(method, path, **kwargs)
             except httpx.TransportError:
-                if attempt >= self._max_retries:
-                    raise
-                await self._sleep(self._backoff_delay(attempt))
-                attempt += 1
-                continue
+                if retry_transient and attempt < self._max_retries:
+                    await self._sleep(self._backoff_delay(attempt))
+                    attempt += 1
+                    continue
+                raise
 
             if self._is_rate_limited(resp):
                 if attempt < self._max_retries:
@@ -226,7 +235,7 @@ class GitHubClient:
                 raise self._rate_limit_error(resp)
 
             if resp.status_code in RETRYABLE_STATUS_CODES:
-                if attempt < self._max_retries:
+                if retry_transient and attempt < self._max_retries:
                     await self._sleep(self._backoff_delay(attempt))
                     attempt += 1
                     continue
