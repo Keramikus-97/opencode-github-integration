@@ -15,7 +15,13 @@ from opencode_github.gamified_learning import (
     LearnerProfile,
     LearningChallenge,
 )
-from opencode_github.github_client import GitHubAPIError, GitHubClient, IssueComment, PullRequest
+from opencode_github.github_client import (
+    GitHubAPIError,
+    GitHubClient,
+    IssueComment,
+    PullRequest,
+    RateLimitError,
+)
 from opencode_github.webhook_handler import EventType, WebhookEvent
 
 __all__ = [
@@ -32,6 +38,7 @@ __all__ = [
     "LearningChallenge",
     "ParsedCommand",
     "PullRequest",
+    "RateLimitError",
     "WebhookEvent",
     "extract_commands",
     "is_command_comment",

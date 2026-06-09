@@ -16,6 +16,8 @@ class Config:
     github_api_url: str = "https://api.github.com"
     allowed_commands: list[str] = field(default_factory=lambda: ["/oc", "/opencode"])
     request_timeout: int = 30
+    max_retries: int = 3
+    backoff_factor: float = 0.5
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> Config:
@@ -53,6 +55,21 @@ class Config:
         except ValueError:
             request_timeout = 30
 
+        retries_raw = env.get("OPENCODE_MAX_RETRIES", "3").strip()
+        try:
+            max_retries = int(retries_raw)
+        except ValueError:
+            max_retries = 3
+        max_retries = max(0, max_retries)
+
+        backoff_raw = env.get("OPENCODE_BACKOFF_FACTOR", "0.5").strip()
+        try:
+            backoff_factor = float(backoff_raw)
+        except ValueError:
+            backoff_factor = 0.5
+        if backoff_factor < 0:
+            backoff_factor = 0.5
+
         return cls(
             github_token=github_token,
             anthropic_api_key=anthropic_api_key,
@@ -60,4 +77,6 @@ class Config:
             github_api_url=github_api_url,
             allowed_commands=allowed_commands,
             request_timeout=request_timeout,
+            max_retries=max_retries,
+            backoff_factor=backoff_factor,
         )
