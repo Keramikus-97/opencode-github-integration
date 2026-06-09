@@ -121,10 +121,10 @@ vim: set ft=cpp:
 -*- c++ -*-
 ```
 
-[`documentation.yml`]: /lib/linguist/documentation.yml
-[`languages.yml`]:     /lib/linguist/languages.yml
-[`generated.rb`]:      /lib/linguist/generated.rb
-[`vendor.yml`]:        /lib/linguist/vendor.yml
+[`documentation.yml`]: https://github.com/github-linguist/linguist/blob/main/lib/linguist/documentation.yml
+[`languages.yml`]:     https://github.com/github-linguist/linguist/blob/main/lib/linguist/languages.yml
+[`generated.rb`]:      https://github.com/github-linguist/linguist/blob/main/lib/linguist/generated.rb
+[`vendor.yml`]:        https://github.com/github-linguist/linguist/blob/main/lib/linguist/vendor.yml
 
 [def]: https://git-scm.com/docs/gitattributes
 [def2]: #using-emacs-or-vim-modelines
