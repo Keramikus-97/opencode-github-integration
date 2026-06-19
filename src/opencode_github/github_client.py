@@ -6,7 +6,10 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
+try:
+    import httpx  # type: ignore[import]
+except ImportError as exc:
+    raise ImportError("The httpx package is required to use GitHubClient") from exc
 
 
 @dataclass(frozen=True)
