@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
+try:
+    import httpx  # type: ignore[import]
+except ImportError as exc:
+    raise ImportError("The httpx package is required to use GitHubClient") from exc
 
 
 @dataclass(frozen=True)
@@ -79,12 +83,27 @@ class GitHubClient:
         await self.close()
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
-        resp = await self._client.request(method, path, **kwargs)
+        try:
+            resp = await self._client.request(method, path, **kwargs)
+        except httpx.TimeoutException as exc:
+            raise GitHubAPIError(
+                0, f"Request timed out: {method} {path}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise GitHubAPIError(
+                0, f"Connection error: {method} {path}: {exc}"
+            ) from exc
         if resp.status_code >= 400:
             raise GitHubAPIError(resp.status_code, resp.text)
         if resp.status_code == 204:
             return None
-        return resp.json()
+        try:
+            return resp.json()
+        except json.JSONDecodeError as exc:
+            raise GitHubAPIError(
+                resp.status_code,
+                f"Invalid JSON in response body: {resp.text[:200]}",
+            ) from exc
 
     async def get_pull_request(self, owner: str, repo: str, number: int) -> PullRequest:
         data = await self._request("GET", f"/repos/{owner}/{repo}/pulls/{number}")
