@@ -124,6 +124,71 @@ class TestListIssueComments:
         )
         assert comments[1].body == ""
 
+    async def test_pagination(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
+        """A full first page is followed until a short page is returned."""
+        page1 = [
+            {
+                "id": i,
+                "body": f"comment {i}",
+                "user": {"login": "user"},
+                "html_url": f"https://github.com/o/r/issues/1#issuecomment-{i}",
+            }
+            for i in range(100)
+        ]
+        page2 = [
+            {
+                "id": 200,
+                "body": "last",
+                "user": {"login": "user"},
+                "html_url": "https://github.com/o/r/issues/1#issuecomment-200",
+            }
+        ]
+
+        call_count = 0
+
+        def side_effect(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            page = int(request.url.params.get("page", "1"))
+            if page == 1:
+                return httpx.Response(200, json=page1)
+            return httpx.Response(200, json=page2)
+
+        mock_router.get("/repos/o/r/issues/1/comments").mock(side_effect=side_effect)
+
+        comments = await client.list_issue_comments("o", "r", 1)
+        assert len(comments) == 101
+        assert comments[-1].body == "last"
+        assert call_count == 2
+
+    async def test_empty_response(
+        self, mock_router: respx.MockRouter, client: GitHubClient
+    ) -> None:
+        mock_router.get("/repos/owner/repo/issues/1/comments").mock(
+            return_value=httpx.Response(200, json=[])
+        )
+        assert await client.list_issue_comments("owner", "repo", 1) == []
+
+    async def test_null_user_maps_to_empty_login(
+        self, mock_router: respx.MockRouter, client: GitHubClient
+    ) -> None:
+        """Comments from deleted users (``user: null``) must not raise."""
+        mock_router.get("/repos/owner/repo/issues/1/comments").mock(
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": 1,
+                        "body": "ghost",
+                        "user": None,
+                        "html_url": "https://github.com/owner/repo/issues/1#issuecomment-1",
+                    }
+                ],
+            )
+        )
+        comments = await client.list_issue_comments("owner", "repo", 1)
+        assert comments[0].user_login == ""
+
 
 class TestCreateIssueComment:
     async def test_success(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
@@ -211,9 +276,7 @@ class TestRetryAndRateLimit:
         client: GitHubClient,
         sleep_stub: RecordingSleep,
     ) -> None:
-        mock_router.get("/repos/owner/repo").mock(
-            return_value=httpx.Response(500, text="boom")
-        )
+        mock_router.get("/repos/owner/repo").mock(return_value=httpx.Response(500, text="boom"))
         with pytest.raises(GitHubAPIError) as exc_info:
             await client.get_repo("owner", "repo")
         assert exc_info.value.status_code == 500
@@ -396,9 +459,7 @@ class TestRetryAndRateLimit:
         mock_router: respx.MockRouter,
         sleep_stub: RecordingSleep,
     ) -> None:
-        client = GitHubClient(
-            token="t", base_url=BASE, max_retries=1, sleep=sleep_stub
-        )
+        client = GitHubClient(token="t", base_url=BASE, max_retries=1, sleep=sleep_stub)
         mock_router.get("/repos/owner/repo").mock(side_effect=httpx.ConnectError("down"))
         with pytest.raises(httpx.ConnectError):
             await client.get_repo("owner", "repo")
@@ -410,17 +471,13 @@ class TestRetryAndRateLimit:
         sleep_stub: RecordingSleep,
     ) -> None:
         client = GitHubClient(token="t", base_url=BASE, max_retries=0, sleep=sleep_stub)
-        mock_router.get("/repos/owner/repo").mock(
-            return_value=httpx.Response(500, text="boom")
-        )
+        mock_router.get("/repos/owner/repo").mock(return_value=httpx.Response(500, text="boom"))
         with pytest.raises(GitHubAPIError):
             await client.get_repo("owner", "repo")
         assert sleep_stub.calls == []
 
     async def test_backoff_factor_caps_at_max_backoff(self) -> None:
-        client = GitHubClient(
-            token="t", backoff_factor=1000.0, max_backoff=2.0, sleep=None
-        )
+        client = GitHubClient(token="t", backoff_factor=1000.0, max_backoff=2.0, sleep=None)
         assert client._backoff_delay(5) == 2.0
 
     async def test_invalid_retry_after_falls_back_to_backoff(
@@ -489,6 +546,30 @@ class TestIdempotencyAwareRetry:
         comment = await client.create_issue_comment("owner", "repo", 1, "hi")
         assert comment.id == 5
         assert sleep_stub.calls == [2.0]
+
+
+class TestRedirectAndBodyHandling:
+    async def test_3xx_raises(self, mock_router: respx.MockRouter, client: GitHubClient) -> None:
+        """Redirects are not followed and are surfaced as GitHubAPIError."""
+        mock_router.get("/repos/owner/repo").mock(
+            return_value=httpx.Response(
+                301, headers={"location": "https://api.github.com/repos/new-owner/repo"}
+            )
+        )
+        with pytest.raises(GitHubAPIError) as exc_info:
+            await client.get_repo("owner", "repo")
+        assert exc_info.value.status_code == 301
+        assert "redirect" in exc_info.value.detail.lower()
+
+    async def test_invalid_json_raises(
+        self, mock_router: respx.MockRouter, client: GitHubClient
+    ) -> None:
+        mock_router.get("/repos/owner/repo").mock(
+            return_value=httpx.Response(200, text="not json at all")
+        )
+        with pytest.raises(GitHubAPIError) as exc_info:
+            await client.get_repo("owner", "repo")
+        assert "Invalid JSON" in exc_info.value.detail
 
 
 class TestFromConfig:

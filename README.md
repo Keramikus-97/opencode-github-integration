@@ -48,12 +48,18 @@ on:
   pull_request_review_comment:
     types: [created]
 
+concurrency:
+  group: opencode-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   opencode:
     if: |
-      contains(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, '/opencode')
+      (contains(github.event.comment.body, '/oc') ||
+       contains(github.event.comment.body, '/opencode')) &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       id-token: write
       contents: write
@@ -62,8 +68,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 1
-          persist-credentials: false
+          fetch-depth: 0
+          persist-credentials: true
 
       - uses: anomalyco/opencode/github@latest
         env:
@@ -73,6 +79,8 @@ jobs:
           model: anthropic/claude-sonnet-4-20250514
           use_github_token: true
 ```
+
+Only repository **owners**, **members**, and **collaborators** can trigger the bot; comments from anyone else are ignored.
 
 ### 2. Add repository secrets
 
@@ -123,7 +131,9 @@ All runtime configuration is read from environment variables via `Config.from_en
 | `OPENCODE_MODEL`    | No       | `anthropic/claude-sonnet-4-20250514`     | Model identifier                   |
 | `GITHUB_API_URL`    | No       | `https://api.github.com`            | API base URL (for GHES)            |
 | `OPENCODE_COMMANDS` | No       | `/oc,/opencode`                     | Comma-separated trigger prefixes   |
-| `OPENCODE_TIMEOUT`  | No       | `30`                                | HTTP request timeout (seconds)     |
+| `OPENCODE_TIMEOUT`  | No       | `30`                                | HTTP request timeout (seconds), clamped to `1`–`300` |
+| `OPENCODE_MAX_RETRIES` | No    | `3`                                 | Retries for transient 5xx / rate limits |
+| `OPENCODE_BACKOFF_FACTOR` | No | `0.5`                               | Exponential backoff base (seconds) |
 
 ## Library API
 

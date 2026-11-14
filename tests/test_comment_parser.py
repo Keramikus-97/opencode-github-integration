@@ -64,6 +64,18 @@ class TestExtractCommands:
         """/ocean should NOT match /oc."""
         assert extract_commands("/ocean voyage", TRIGGERS) == []
 
+    def test_trigger_followed_by_punctuation(self) -> None:
+        r"""`/oc:` must still match — guards the `(?!\w)` lookahead."""
+        cmds = extract_commands("/oc: fix it", TRIGGERS)
+        assert len(cmds) == 1
+        assert cmds[0].trigger == "/oc"
+
+    def test_trigger_with_special_regex_chars(self) -> None:
+        """Triggers ending in non-word characters are matched literally."""
+        cmds = extract_commands("/oc+ hello", ["/oc+"])
+        assert len(cmds) == 1
+        assert cmds[0].trigger == "/oc+"
+
 
 class TestIsCommandComment:
     def test_true_for_matching(self) -> None:
