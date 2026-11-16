@@ -40,6 +40,7 @@ def extract_commands(body: str, allowed_triggers: list[str]) -> list[ParsedComma
     escaped = [re.escape(t) for t in sorted(allowed_triggers, key=len, reverse=True)]
     pattern = re.compile(
         r"^\s*(" + "|".join(escaped) + r")(?!\w)\s*(.*?)\s*$",
+        r"^\s*(" + "|".join(escaped) + r")(?=\s|$)\s*(.*?)\s*$",
         re.MULTILINE,
     )
 
@@ -65,6 +66,8 @@ def split_arguments(arguments: str) -> list[str]:
 
     Unmatched quotes are dropped; the remaining text is collected into the
     final token.
+    Unmatched quotes are treated as literal characters — the remaining text
+    is collected into the final token.
 
     >>> split_arguments('fix bug --verbose "hello world"')
     ['fix', 'bug', '--verbose', 'hello world']

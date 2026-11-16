@@ -22,6 +22,8 @@ RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({500, 502, 503, 504})
 # is not duplicated.
 IDEMPOTENT_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "PUT", "DELETE"})
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class PullRequest:
@@ -118,22 +120,6 @@ class GitHubClient:
             },
             timeout=timeout,
             follow_redirects=False,
-        )
-
-    @classmethod
-    def from_config(
-        cls,
-        config: Config,
-        sleep: Callable[[float], Awaitable[None]] | None = None,
-    ) -> GitHubClient:
-        """Build a client from a :class:`~opencode_github.config.Config`."""
-        return cls(
-            token=config.github_token,
-            base_url=config.github_api_url,
-            timeout=config.request_timeout,
-            max_retries=config.max_retries,
-            backoff_factor=config.backoff_factor,
-            sleep=sleep,
         )
 
     async def close(self) -> None:

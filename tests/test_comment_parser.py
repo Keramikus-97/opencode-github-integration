@@ -106,3 +106,17 @@ class TestSplitArguments:
 
     def test_no_quotes(self) -> None:
         assert split_arguments("a b c") == ["a", "b", "c"]
+
+    def test_unmatched_quote(self) -> None:
+        """Unmatched opening quote collects remaining text as one token."""
+        result = split_arguments('fix "hello world')
+        assert result == ["fix", "hello world"]
+
+    def test_empty_quoted_string(self) -> None:
+        """Empty quotes produce no token (quotes stripped, nothing inside)."""
+        result = split_arguments('a "" b')
+        assert result == ["a", "b"]
+
+    def test_consecutive_spaces(self) -> None:
+        result = split_arguments("a   b   c")
+        assert result == ["a", "b", "c"]
