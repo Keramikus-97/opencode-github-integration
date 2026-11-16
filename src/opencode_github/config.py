@@ -52,7 +52,7 @@ class Config:
         allowed_raw = env.get("OPENCODE_COMMANDS", "/oc,/opencode").strip()
         allowed_commands = [cmd.strip() for cmd in allowed_raw.split(",") if cmd.strip()]
 
-        timeout_raw = env.get("OPENCODE_TIMEOUT", "30").strip()
+        timeout_raw = env.get("OPENCODE_TIMEOUT", str(DEFAULT_TIMEOUT)).strip()
         try:
             request_timeout = int(timeout_raw)
         except ValueError:
