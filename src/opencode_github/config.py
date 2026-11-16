@@ -8,10 +8,6 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-MIN_TIMEOUT = 1
-MAX_TIMEOUT = 300
-DEFAULT_TIMEOUT = 30
-
 
 @dataclass(frozen=True)
 class Config:
@@ -23,6 +19,8 @@ class Config:
     github_api_url: str = "https://api.github.com"
     allowed_commands: list[str] = field(default_factory=lambda: ["/oc", "/opencode"])
     request_timeout: int = 30
+    max_retries: int = 3
+    backoff_factor: float = 0.5
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> Config:
@@ -59,20 +57,25 @@ class Config:
             request_timeout = int(timeout_raw)
         except ValueError:
             logger.warning(
-                "Invalid OPENCODE_TIMEOUT value %r, falling back to %d",
+                "Invalid OPENCODE_TIMEOUT value %r, falling back to 30 seconds",
                 timeout_raw,
-                DEFAULT_TIMEOUT,
             )
-            request_timeout = DEFAULT_TIMEOUT
+            request_timeout = 30
 
-        if request_timeout < MIN_TIMEOUT or request_timeout > MAX_TIMEOUT:
-            logger.warning(
-                "OPENCODE_TIMEOUT=%d out of range [%d, %d], clamping",
-                request_timeout,
-                MIN_TIMEOUT,
-                MAX_TIMEOUT,
-            )
-            request_timeout = max(MIN_TIMEOUT, min(request_timeout, MAX_TIMEOUT))
+        retries_raw = env.get("OPENCODE_MAX_RETRIES", "3").strip()
+        try:
+            max_retries = int(retries_raw)
+        except ValueError:
+            max_retries = 3
+        max_retries = max(0, max_retries)
+
+        backoff_raw = env.get("OPENCODE_BACKOFF_FACTOR", "0.5").strip()
+        try:
+            backoff_factor = float(backoff_raw)
+        except ValueError:
+            backoff_factor = 0.5
+        if backoff_factor < 0:
+            backoff_factor = 0.5
 
         return cls(
             github_token=github_token,
@@ -81,4 +84,6 @@ class Config:
             github_api_url=github_api_url,
             allowed_commands=allowed_commands,
             request_timeout=request_timeout,
+            max_retries=max_retries,
+            backoff_factor=backoff_factor,
         )
