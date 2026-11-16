@@ -59,15 +59,11 @@ class TestConfigFromEnv:
         cfg = Config.from_env(minimal_env)
         assert cfg.request_timeout == MAX_TIMEOUT
 
-    def test_boundary_min_timeout(self, minimal_env: dict[str, str]) -> None:
+    def test_boundary_timeouts_preserved(self, minimal_env: dict[str, str]) -> None:
         minimal_env["OPENCODE_TIMEOUT"] = str(MIN_TIMEOUT)
-        cfg = Config.from_env(minimal_env)
-        assert cfg.request_timeout == MIN_TIMEOUT
-
-    def test_boundary_max_timeout(self, minimal_env: dict[str, str]) -> None:
+        assert Config.from_env(minimal_env).request_timeout == MIN_TIMEOUT
         minimal_env["OPENCODE_TIMEOUT"] = str(MAX_TIMEOUT)
-        cfg = Config.from_env(minimal_env)
-        assert cfg.request_timeout == MAX_TIMEOUT
+        assert Config.from_env(minimal_env).request_timeout == MAX_TIMEOUT
 
     def test_default_retry_settings(self, minimal_env: dict[str, str]) -> None:
         cfg = Config.from_env(minimal_env)

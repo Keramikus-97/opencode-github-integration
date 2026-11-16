@@ -8,6 +8,10 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
+MIN_TIMEOUT = 1
+MAX_TIMEOUT = 300
+DEFAULT_TIMEOUT = 30
+
 
 @dataclass(frozen=True)
 class Config:
@@ -18,7 +22,7 @@ class Config:
     model: str = "anthropic/claude-sonnet-4-20250514"
     github_api_url: str = "https://api.github.com"
     allowed_commands: list[str] = field(default_factory=lambda: ["/oc", "/opencode"])
-    request_timeout: int = 30
+    request_timeout: int = DEFAULT_TIMEOUT
     max_retries: int = 3
     backoff_factor: float = 0.5
 
@@ -57,10 +61,20 @@ class Config:
             request_timeout = int(timeout_raw)
         except ValueError:
             logger.warning(
-                "Invalid OPENCODE_TIMEOUT value %r, falling back to 30 seconds",
+                "Invalid OPENCODE_TIMEOUT value %r, falling back to %d seconds",
                 timeout_raw,
+                DEFAULT_TIMEOUT,
             )
-            request_timeout = 30
+            request_timeout = DEFAULT_TIMEOUT
+
+        if request_timeout < MIN_TIMEOUT or request_timeout > MAX_TIMEOUT:
+            logger.warning(
+                "OPENCODE_TIMEOUT=%d out of range [%d, %d], clamping",
+                request_timeout,
+                MIN_TIMEOUT,
+                MAX_TIMEOUT,
+            )
+            request_timeout = max(MIN_TIMEOUT, min(request_timeout, MAX_TIMEOUT))
 
         retries_raw = env.get("OPENCODE_MAX_RETRIES", "3").strip()
         try:

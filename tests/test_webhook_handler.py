@@ -129,6 +129,42 @@ class TestParsePayload:
         }
         assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
 
+    def test_missing_comment_id_returns_none(self) -> None:
+        payload = {
+            "action": "created",
+            "comment": {"id": 0, "body": "/oc hi", "user": {"login": "u"}},
+            "issue": {"number": 1},
+            "repository": {"name": "r", "owner": {"login": "o"}},
+        }
+        assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
+
+    def test_missing_sender_login_returns_none(self) -> None:
+        payload = {
+            "action": "created",
+            "comment": {"id": 1, "body": "/oc hi", "user": {"login": ""}},
+            "issue": {"number": 1},
+            "repository": {"name": "r", "owner": {"login": "o"}},
+        }
+        assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
+
+    def test_null_user_returns_none(self) -> None:
+        payload = {
+            "action": "created",
+            "comment": {"id": 1, "body": "/oc hi", "user": None},
+            "issue": {"number": 1},
+            "repository": {"name": "r", "owner": {"login": "o"}},
+        }
+        assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
+
+    def test_missing_issue_number_returns_none(self) -> None:
+        payload = {
+            "action": "created",
+            "comment": {"id": 1, "body": "/oc hi", "user": {"login": "u"}},
+            "issue": {"number": 0},
+            "repository": {"name": "r", "owner": {"login": "o"}},
+        }
+        assert parse_payload(EventType.ISSUE_COMMENT, payload) is None
+
 
 class TestParseRaw:
     def test_full_round_trip(self, issue_comment_payload: dict) -> None:

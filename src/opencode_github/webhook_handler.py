@@ -120,12 +120,25 @@ def parse_payload(event_type: EventType, payload: dict[str, Any]) -> WebhookEven
             event_type.value,
         )
 
+    comment_id = comment.get("id", 0)
+    sender_login = (comment.get("user") or {}).get("login", "")
+
+    if not comment_id or not sender_login or not issue_number:
+        logger.warning(
+            "Webhook payload is missing a comment id, sender login, or issue/PR number "
+            "(id=%r, sender=%r, issue_number=%r); discarding",
+            comment_id,
+            sender_login,
+            issue_number,
+        )
+        return None
+
     return WebhookEvent(
         event_type=event_type,
         action=action,
         comment_body=comment.get("body", ""),
-        comment_id=comment.get("id", 0),
-        sender_login=comment.get("user", {}).get("login", ""),
+        comment_id=comment_id,
+        sender_login=sender_login,
         repo_owner=repo_owner,
         repo_name=repo_name,
         issue_number=issue_number,

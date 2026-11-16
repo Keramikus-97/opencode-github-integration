@@ -39,6 +39,7 @@ def extract_commands(body: str, allowed_triggers: list[str]) -> list[ParsedComma
 
     escaped = [re.escape(t) for t in sorted(allowed_triggers, key=len, reverse=True)]
     pattern = re.compile(
+        r"^\s*(" + "|".join(escaped) + r")(?!\w)\s*(.*?)\s*$",
         r"^\s*(" + "|".join(escaped) + r")(?=\s|$)\s*(.*?)\s*$",
         re.MULTILINE,
     )
@@ -63,6 +64,8 @@ def is_command_comment(body: str, allowed_triggers: list[str]) -> bool:
 def split_arguments(arguments: str) -> list[str]:
     """Split an argument string into tokens respecting double-quoted groups.
 
+    Unmatched quotes are dropped; the remaining text is collected into the
+    final token.
     Unmatched quotes are treated as literal characters — the remaining text
     is collected into the final token.
 
