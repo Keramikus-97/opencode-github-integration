@@ -5,9 +5,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class EventType(Enum):
@@ -94,6 +97,15 @@ def parse_payload(event_type: EventType, payload: dict[str, Any]) -> WebhookEven
     repo_data: dict[str, Any] = payload.get("repository", {})
     owner_data: dict[str, Any] = repo_data.get("owner", {})
 
+    repo_owner = owner_data.get("login", "")
+    repo_name = repo_data.get("name", "")
+    if not repo_owner or not repo_name:
+        logger.warning(
+            "Webhook payload missing repository owner/name: owner=%r, name=%r",
+            repo_owner,
+            repo_name,
+        )
+
     # For issue_comment events the issue number lives at payload.issue.number;
     # for PR review comments it lives at payload.pull_request.number.
     issue_number: int = 0
@@ -102,14 +114,20 @@ def parse_payload(event_type: EventType, payload: dict[str, Any]) -> WebhookEven
     elif event_type == EventType.PR_REVIEW_COMMENT:
         issue_number = payload.get("pull_request", {}).get("number", 0)
 
+    if issue_number == 0:
+        logger.warning(
+            "Webhook payload has no issue/PR number for event type %s",
+            event_type.value,
+        )
+
     return WebhookEvent(
         event_type=event_type,
         action=action,
         comment_body=comment.get("body", ""),
         comment_id=comment.get("id", 0),
         sender_login=comment.get("user", {}).get("login", ""),
-        repo_owner=owner_data.get("login", ""),
-        repo_name=repo_data.get("name", ""),
+        repo_owner=repo_owner,
+        repo_name=repo_name,
         issue_number=issue_number,
         raw_payload=payload,
     )
@@ -120,6 +138,11 @@ def parse_raw(event_header: str, body: bytes) -> WebhookEvent | None:
     event_type = classify_event(event_header)
     try:
         payload = json.loads(body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        logger.error(
+            "Failed to decode webhook payload for event %r: %s",
+            event_header,
+            exc,
+        )
         return None
     return parse_payload(event_type, payload)

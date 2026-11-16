@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from opencode_github.config import Config
+from opencode_github.config import DEFAULT_TIMEOUT, MAX_TIMEOUT, MIN_TIMEOUT, Config
 
 
 class TestConfigFromEnv:
@@ -42,7 +42,64 @@ class TestConfigFromEnv:
     def test_invalid_timeout_falls_back(self, minimal_env: dict[str, str]) -> None:
         minimal_env["OPENCODE_TIMEOUT"] = "not_a_number"
         cfg = Config.from_env(minimal_env)
-        assert cfg.request_timeout == 30
+        assert cfg.request_timeout == DEFAULT_TIMEOUT
+
+    def test_negative_timeout_clamped(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = "-5"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MIN_TIMEOUT
+
+    def test_zero_timeout_clamped(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = "0"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MIN_TIMEOUT
+
+    def test_excessive_timeout_clamped(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = "9999"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MAX_TIMEOUT
+
+    def test_boundary_min_timeout(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = str(MIN_TIMEOUT)
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MIN_TIMEOUT
+
+    def test_boundary_max_timeout(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_TIMEOUT"] = str(MAX_TIMEOUT)
+        cfg = Config.from_env(minimal_env)
+        assert cfg.request_timeout == MAX_TIMEOUT
+
+    def test_default_retry_settings(self, minimal_env: dict[str, str]) -> None:
+        cfg = Config.from_env(minimal_env)
+        assert cfg.max_retries == 3
+        assert cfg.backoff_factor == 0.5
+
+    def test_custom_retry_settings(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_MAX_RETRIES"] = "6"
+        minimal_env["OPENCODE_BACKOFF_FACTOR"] = "2.5"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.max_retries == 6
+        assert cfg.backoff_factor == 2.5
+
+    def test_invalid_max_retries_falls_back(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_MAX_RETRIES"] = "lots"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.max_retries == 3
+
+    def test_negative_max_retries_clamped_to_zero(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_MAX_RETRIES"] = "-2"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.max_retries == 0
+
+    def test_invalid_backoff_factor_falls_back(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_BACKOFF_FACTOR"] = "fast"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.backoff_factor == 0.5
+
+    def test_negative_backoff_factor_falls_back(self, minimal_env: dict[str, str]) -> None:
+        minimal_env["OPENCODE_BACKOFF_FACTOR"] = "-1.0"
+        cfg = Config.from_env(minimal_env)
+        assert cfg.backoff_factor == 0.5
 
     def test_whitespace_stripped(self, minimal_env: dict[str, str]) -> None:
         minimal_env["GITHUB_TOKEN"] = "  token_with_spaces  "
